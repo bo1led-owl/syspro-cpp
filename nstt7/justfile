@@ -5,6 +5,9 @@ test:
 
 format:
     clang-format -i $(find . -name "**.hpp") $(find . -name "**.cpp")
+
+graph:
+    dot -Tpng < encoding.dot > encoding.png
     
 build:
     meson compile -C {{builddir}}

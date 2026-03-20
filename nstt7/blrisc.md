@@ -42,37 +42,4 @@ Straightforward: `r0`-`r7` is `000`-`111` respectively.
 | `beq rx off`    | `if rx == 0 then pc += off` | 01100xxx/II
 | `bne rx off`    | `if rx != 0 then pc += off` | 01101xxx/II
 
-Encoding grouping (see this list as a tree with keys being encoding bits from left to right):
-- 0
-  - 0
-    - 0
-      - 0
-        - 0
-          - 0
-            - 0 - `hlt`
-            - 1 - `mov rx ry`
-          - 1 - bit-shifts
-            - 00 - `shl rx ry`
-            - 01 - `shl rx imm`
-            - 10 - `shr rx ry`
-            - 11 - `shr rx imm`
-        - 1 - arithmetic with register second operand
-          - 00 - add
-          - 01 - sub
-          - 10 - mul
-          - 11 - div
-      - 1 - memory operations
-    - 1 - arithmetic with immediate second operand
-      - 00 - add
-      - 01 - sub
-      - 10 - mul
-      - 11 - div
-  - 1 - jumps
-    - 111 - jmp
-    - 000 - brlt
-    - 001 - brle
-    - 010 - brgt
-    - 011 - brge
-    - 100 - breq
-    - 101 - brne
-- 1 - `mov rx imm`
+![Encoding grouping tree](./encoding.png "Encoding grouping")
