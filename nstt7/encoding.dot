@@ -6,43 +6,45 @@ digraph encoding {
     G1 -> jumps [label=1]
 
     jumps -> jmp [label=111]
-    jumps -> brlt [label=000]
-    jumps -> brle [label=001]
-    jumps -> brgt [label=010]
-    jumps -> brge [label=011]
-    jumps -> breq [label=100]
-    jumps -> brne [label=101]
+    jumps -> blt [label=000]
+    jumps -> ble [label=001]
+    jumps -> bgt [label=010]
+    jumps -> bge [label=011]
+    jumps -> beq [label=100]
+    jumps -> bne [label=101]
 
-    G1 -> "arithmetic with immediate second operand" [label=1]
+    G1 -> G2 [label=0]
+
+    G2 -> "arithmetic with immediate second operand" [label=1]
     "arithmetic with immediate second operand" -> "add rx imm" [label=00]
     "arithmetic with immediate second operand" -> "sub rx imm" [label=01]
     "arithmetic with immediate second operand" -> "mul rx imm" [label=10]
     "arithmetic with immediate second operand" -> "div rx imm" [label=11]
 
-    G1 -> G2 [label=0]
+    G2 -> G3 [label=0]
 
-    G2 -> "memory operations" [label=1]
+    G3 -> "memory operations" [label=1]
     "memory operations" -> ld [label=0]
     "memory operations" -> st [label=1]
 
-    G2 -> G3 [label=0]
+    G3 -> G4 [label=0]
 
-    G3 -> "arithmetic with register second operand" [label=1]
+    G4 -> "arithmetic with register second operand" [label=1]
     "arithmetic with register second operand" -> "add rx ry" [label=00]
     "arithmetic with register second operand" -> "sub rx ry" [label=01]
     "arithmetic with register second operand" -> "mul rx ry" [label=10]
     "arithmetic with register second operand" -> "div rx ry" [label=11]
 
-    G3 -> G4 [label=0]
+    G4 -> G5 [label=0]
 
-    G4 -> shifts [label=1]
+    G5 -> shifts [label=1]
     shifts -> "shl rx ry"  [label=00]
     shifts -> "shl rx imm" [label=00]
     shifts -> "shr rx ry"  [label=10]
     shifts -> "shr rx imm"  [label=11]
 
-    G4 -> G5 [label=0]
+    G5 -> G6 [label=0]
 
-    G5 -> hlt [label=0]
-    G5 -> "mov rx ry" [label=1]
+    G6 -> hlt [label=0]
+    G6 -> "mov rx ry" [label=1]
 }
