@@ -52,7 +52,7 @@ struct Instruction {
 
 class EmulatorState {
 public:
-    static constexpr size_t REGS = 8;
+    static constexpr size_t REGS = 7;
     static constexpr size_t MEM_SIZE = 65536;
 
 private:
@@ -86,13 +86,13 @@ public:
     Word readReg(Reg reg) const {
         if (reg == Reg::RZ)
             return 0;
-        return registers_[std::to_underlying(reg)];
+        return registers_[std::to_underlying(reg) - 1];
     }
 
     void writeReg(Reg reg, Word value) {
         if (reg == Reg::RZ)
             return;
-        registers_[std::to_underlying(reg)] = value;
+        registers_[std::to_underlying(reg) - 1] = value;
     }
 
     Word readMem(Word offset) const {
@@ -282,7 +282,7 @@ public:
     }
 
     void print(std::ostream& os) const override {
-        os << "jmp " << offset_;
+        os << "jmp " << std::bit_cast<int16_t>(offset_);
     }
 };
 
@@ -305,19 +305,19 @@ public:
     }
 };
 
-#define MAKE_BRANCH_INSTR(NAME, OP, MNEMONIC)                    \
-    class NAME final : public BranchInstr {                      \
-    protected:                                                   \
-        bool cond(Word value) const override {                   \
-            return value OP 0;                                   \
-        }                                                        \
-                                                                 \
-    public:                                                      \
-        NAME(Reg reg, Word offset) : BranchInstr(reg, offset) {} \
-                                                                 \
-        void print(std::ostream& os) const override {            \
-            os << STR(MNEMONIC) " " << reg_ << ", " << offset_;  \
-        }                                                        \
+#define MAKE_BRANCH_INSTR(NAME, OP, MNEMONIC)                                           \
+    class NAME final : public BranchInstr {                                             \
+    protected:                                                                          \
+        bool cond(Word value) const override {                                          \
+            return value OP 0;                                                          \
+        }                                                                               \
+                                                                                        \
+    public:                                                                             \
+        NAME(Reg reg, Word offset) : BranchInstr(reg, offset) {}                        \
+                                                                                        \
+        void print(std::ostream& os) const override {                                   \
+            os << STR(MNEMONIC) " " << reg_ << ", " << std::bit_cast<int16_t>(offset_); \
+        }                                                                               \
     }
 
 MAKE_BRANCH_INSTR(Blt, <, blt);
@@ -390,10 +390,10 @@ std::unique_ptr<Instruction> decodeInstr(EncodedInstruction instr) {
 
         if (extractBits(instr, 4, 1) == 0) {
             return std::make_unique<Load>(
-                extractReg(instr, 5), extractReg(instr, 8), extractReg(instr, 13));
+                extractReg(instr, 5), extractReg(instr, 8), extractReg(instr, 11));
         } else {
             return std::make_unique<Store>(
-                extractReg(instr, 5), extractReg(instr, 8), extractReg(instr, 13));
+                extractReg(instr, 5), extractReg(instr, 8), extractReg(instr, 11));
         }
     }
 

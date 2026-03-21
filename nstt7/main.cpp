@@ -11,5 +11,6 @@ int main(int argc, char** argv) {
 
     std::ifstream binary(argv[1], std::ios::binary);
 
-    std::cout << Emulator::emulate(binary, std::cout) << '\n';
+    Emulator::Word res = Emulator::emulate(binary, std::cout);
+    std::cout << "\nr1 = " << res << '\n';
 }

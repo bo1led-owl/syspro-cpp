@@ -64,7 +64,7 @@ parseInstruction =
           char ','
           uncurry (Load dest) <$> addr,
         do
-          string "ld"
+          string "st"
           dest <- addr
           char ','
           uncurry Store dest <$> parseRegister,
@@ -87,7 +87,7 @@ parseInstruction =
       (reg lhs <$> try parseRegister) <|> (imm lhs <$> parseImmediate)
 
     addr :: Parser (Reg, Reg)
-    addr = between (char '[') (char ']') $ do
+    addr = between (hspace *> char '[') (hspace *> char ']' *> hspace) $ do
       base <- parseRegister
       offset <- (char '+' *> parseRegister) <|> pure RZ
       pure (base, offset)

@@ -35,8 +35,8 @@ Straightforward: `rz` is `000`, `r1`-`r7` is `001`-`111` respectively.
 | `mul rx imm`    | `rx *= imm`                 | `00110xxx/II`
 | `div rx ry`     | `rx /= ry`                  | `0000111x/xxyyy000`
 | `div rx imm`    | `rx /= imm`                 | `00111xxx/II`
-| `ld rd [rs+rx]` | `rd = mem[rs+ri]`           | `00010ddd/sssxxx00`
-| `st [rd+rx] rs` | `mem[rs+ri] = rs`           | `00011ddd/xxxsss00`
+| `ld rd [rs+rx]` | `rd = mem[rs+rx]`           | `00010ddd/sssxxx00`
+| `st [rd+rx] rs` | `mem[rs+rx] = rs`           | `00011ddd/xxxsss00`
 | `jmp off`       | `pc += off`                 | `01111iii/II`
 | `blt rx off`    | `if rx < 0 then pc += off`  | `01000xxx/II`
 | `ble rx off`    | `if rx <= 0 then pc += off` | `01001xxx/II`

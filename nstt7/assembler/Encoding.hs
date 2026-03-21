@@ -65,7 +65,7 @@ encodeInstr _ _ (DivImm lhs rhs) = pure $ laidOut [5, 3, 8] [0b00111, encodeReg 
 encodeInstr _ _ (Load dest src offset) =
   pure $ laidOut [5, 3, 3, 3] [0b00010, encodeReg dest, encodeReg src, encodeReg offset]
 encodeInstr _ _ (Store dest offset src) =
-  pure $ laidOut [5, 3, 3, 3] [0b00011, encodeReg dest, encodeReg src, encodeReg offset]
+  pure $ laidOut [5, 3, 3, 3] [0b00011, encodeReg dest, encodeReg offset, encodeReg src]
 encodeInstr labels i (Jmp label) = do
   offset <- getOffset labels i label
   pure $ laidOut [5, 11] [0b01111, offset]
