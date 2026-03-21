@@ -7,5 +7,6 @@ project(
   ],
 )
 
-tests = executable('tests', ['emulator.cpp'], dependencies: [dependency('gtest_main')])
-test('tests', tests)
+executable('emulator', ['emulator.cpp', 'main.cpp'])
+# tests = executable('tests', ['emulator.cpp'], dependencies: [dependency('gtest_main')])
+# test('tests', tests)

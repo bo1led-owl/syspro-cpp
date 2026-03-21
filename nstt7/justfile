@@ -1,5 +1,8 @@
 builddir := "./build"
 
+run *ARGS: build
+    {{builddir}}/emulator {{ARGS}}
+
 test:
     meson test -C {{builddir}}
 
