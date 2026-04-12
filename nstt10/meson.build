@@ -1,5 +1,5 @@
 project(
-  'nstt6',
+  'nstt10',
   'cpp',
   default_options: [
     'cpp_std=c++23',
