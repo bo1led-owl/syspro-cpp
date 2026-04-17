@@ -2,119 +2,96 @@
 
 #include "io.hpp"
 
-class StringReader final : public Reader {
-    bool closed_ = false;
+class StringReader : public virtual Reader {
     size_t offset_ = 0;
     std::string_view input_;
 
-    void advance() override {
-        offset_ += 1;
+protected:
+    void updateInput(std::string_view s) {
+        input_ = s;
     }
 
-    std::optional<char> peekChar() override {
+    std::optional<char> getCharRaw() override {
         if (isEof()) {
             return std::nullopt;
         }
-        return input_[offset_];
+        return input_[offset_++];
     }
 
 public:
     StringReader(std::string_view input) : input_{input} {}
 
-    bool isEof() override {
-        return closed_ || offset_ >= input_.size();
-    }
-
-    void close() override {
-        closed_ = true;
-    }
-
-    bool isOpen() const override {
-        return !closed_;
-    }
-
-    size_t readOffset() const override {
+    size_t getReadOffset() const override {
         return offset_;
+    }
+
+    void setReadOffset(size_t offset) override {
+        offset_ = std::min(offset, input_.size());
+    }
+
+    bool isEof() override {
+        return isClosed() || (offset_ >= input_.size() && !bufferedChar());
     }
 };
 
-class StringWriter final : public Writer {
-    bool closed_ = false;
+class StringWriter : public virtual Writer {
     std::string buffer_;
+    size_t offset_;
+
+protected:
+    std::string_view curBuffer() {
+        return buffer_;
+    }
 
     void putChar(char c) override {
-        buffer_.push_back(c);
+        buffer_.insert(buffer_.begin() + offset_, c);
+        offset_ += 1;
     }
 
 public:
     template <typename T>
-    StringWriter(T&& initial) : buffer_{std::forward<T>(initial)} {}
+    StringWriter(T&& initial) : buffer_{std::forward<T>(initial)}, offset_{buffer_.size()} {}
+
+    size_t getWriteOffset() const override {
+        return offset_;
+    }
+
+    void setWriteOffset(size_t offset) override {
+        offset_ = std::min(offset, buffer_.size());
+    }
 
     std::string finish() {
         close();
         return std::move(buffer_);
     }
-
-    void close() override {
-        closed_ = true;
-    }
-
-    bool isOpen() const override {
-        return !closed_;
-    }
-
-    size_t writeOffset() const override {
-        return buffer_.size();
-    }
 };
 
-class StringReaderWriter final : public ReaderWriter {
-    std::string buffer_;
-    bool closed_ = false;
-    size_t readOffset_ = 0;
-
+class StringReaderWriter : public StringWriter, public StringReader {
 protected:
-    void putChar(char c) override final {
-        bool shouldAdvance = readOffset() >= writeOffset();
+    void putChar(char c) override {
+        bool shouldAdvance = getReadOffset() >= getWriteOffset();
 
-        buffer_.push_back(c);
+        StringWriter::putChar(c);
+        StringReader::updateInput(curBuffer());
+
         if (shouldAdvance)
-            advance();
-    }
-
-    void advance() override {
-        readOffset_ = std::min(readOffset_ + 1, buffer_.size());
-    }
-
-    std::optional<char> peekChar() override {
-        if (isEof()) {
-            return std::nullopt;
-        }
-
-        return buffer_[readOffset_];
+            setReadOffset(getReadOffset() + 1);
     }
 
 public:
     template <typename T>
-    StringReaderWriter(T&& initial) : buffer_{std::forward<T>(initial)} {}
-
-    bool isEof() override {
-        return closed_ || readOffset_ >= buffer_.size();
-    }
+    StringReaderWriter(T&& initial)
+        : StringWriter{std::forward<T>(initial)}, StringReader(curBuffer()) {}
 
     void close() override {
-        closed_ = true;
+        StringWriter::close();
     }
 
-    bool isOpen() const override {
-        return !closed_;
+    bool isClosed() const {
+        return StringWriter::isClosed();
     }
 
-    size_t readOffset() const override {
-        return readOffset_;
-    }
-
-    size_t writeOffset() const override {
-        return buffer_.size();
+    bool isOpen() const {
+        return StringWriter::isOpen();
     }
 };

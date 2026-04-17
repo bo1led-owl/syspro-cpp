@@ -9,40 +9,64 @@
 #include <optional>
 #include <string>
 
-struct IO {
+class IO {
+protected:
+    bool closed_ = false;
+
+public:
     virtual ~IO() = default;
-    virtual void close() = 0;
-    virtual bool isOpen() const = 0;
+
+    virtual void close() {
+        closed_ = true;
+    }
+    bool isOpen() const {
+        return !closed_;
+    }
+    bool isClosed() const {
+        return closed_;
+    }
 };
 
-class Reader : public IO {
+class Reader : public virtual IO {
+    std::optional<char> extraChar_;
+
+    std::optional<char> getChar() {
+        if (extraChar_) {
+            char res = *extraChar_;
+            extraChar_.reset();
+            return res;
+        }
+
+        return getCharRaw();
+    }
+
+    void returnChar(char c) {
+        extraChar_ = c;
+    }
+
+protected:
+    virtual std::optional<char> getCharRaw() = 0;
+
+    std::optional<char> bufferedChar() {
+        return extraChar_;
+    }
+
 public:
     enum class Error {
         Eof,
         InvalidChar,
     };
 
-protected:
-    virtual void advance() = 0;
-    virtual std::optional<char> getChar() {
-        auto res = peekChar();
-        advance();
-        return res;
-    }
-    virtual std::optional<char> peekChar() = 0;
-
 private:
     template <std::integral T>
-    std::expected<T, Error> readIntegral() {
+    std::expected<T, Error> readInteger() {
         T res = 0;
-        auto c = peekChar();
+        auto c = getChar();
 
         bool negative = false;
         if constexpr (std::is_signed_v<T>) {
             if (c == '-') {
                 negative = true;
-                getChar();
-                c = peekChar();
             }
         }
 
@@ -51,15 +75,19 @@ private:
         }
 
         if (!std::isdigit(*c)) {
+            returnChar(*c);
             return std::unexpected(Error::InvalidChar);
         }
 
         while (c.has_value() && std::isdigit(*c)) {
-            getChar();
             res *= 10;
             res += *c - '0';
 
-            c = peekChar();
+            c = getChar();
+        }
+
+        if (c.has_value()) {
+            returnChar(*c);
         }
 
         if (negative) {
@@ -70,7 +98,8 @@ private:
     }
 
 public:
-    virtual size_t readOffset() const = 0;
+    virtual size_t getReadOffset() const = 0;
+    virtual void setReadOffset(size_t offset) = 0;
 
     virtual bool isEof() = 0;
 
@@ -78,7 +107,7 @@ public:
         std::string res;
         auto c = getChar();
 
-        while (c.has_value() && c != '\n' && c != EOF) {
+        while (c.has_value() && c != '\n') {
             res.push_back(*c);
             c = getChar();
         }
@@ -96,39 +125,39 @@ public:
     }
 
     std::expected<uint8_t, Error> readU8() {
-        return readIntegral<uint8_t>();
+        return readInteger<uint8_t>();
     }
 
     std::expected<int8_t, Error> readI8() {
-        return readIntegral<int8_t>();
+        return readInteger<int8_t>();
     }
 
     std::expected<uint16_t, Error> readU16() {
-        return readIntegral<uint16_t>();
+        return readInteger<uint16_t>();
     }
 
     std::expected<int16_t, Error> readI16() {
-        return readIntegral<int16_t>();
+        return readInteger<int16_t>();
     }
 
     std::expected<uint32_t, Error> readU32() {
-        return readIntegral<uint32_t>();
+        return readInteger<uint32_t>();
     }
 
     std::expected<int32_t, Error> readI32() {
-        return readIntegral<int32_t>();
+        return readInteger<int32_t>();
     }
 
     std::expected<uint64_t, Error> readU64() {
-        return readIntegral<uint64_t>();
+        return readInteger<uint64_t>();
     }
 
     std::expected<int64_t, Error> readI64() {
-        return readIntegral<int64_t>();
+        return readInteger<int64_t>();
     }
 };
 
-class Writer : public IO {
+class Writer : public virtual IO {
     template <typename T>
     struct Digits10 {
         static constexpr size_t value = 0;
@@ -187,7 +216,8 @@ private:
     }
 
 public:
-    virtual size_t writeOffset() const = 0;
+    virtual size_t getWriteOffset() const = 0;
+    virtual void setWriteOffset(size_t offset) = 0;
 
     bool writeString(std::string_view s) {
         if (!isOpen()) {
@@ -243,4 +273,4 @@ public:
     }
 };
 
-struct ReaderWriter : public Reader, public Writer {};
+class ReaderWriter : public virtual Reader, public virtual Writer {};

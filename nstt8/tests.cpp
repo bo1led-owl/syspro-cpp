@@ -16,20 +16,28 @@ TEST(String, Reader) {
 
 TEST(String, Writer) {
     StringWriter sw("foo");
+    sw.setWriteOffset(0);
     sw.writeString("bar");
+    sw.setWriteOffset(6);
     sw.writeU16(42);
+
     EXPECT_TRUE(sw.isOpen());
     sw.close();
-    EXPECT_EQ(sw.finish(), "foobar42");
+    EXPECT_EQ(sw.finish(), "barfoo42");
     EXPECT_FALSE(sw.isOpen());
 }
 
 TEST(String, ReaderWriter) {
     StringReaderWriter srw("foo");
+
+    EXPECT_TRUE(srw.isOpen());
+    EXPECT_TRUE(!srw.isEof());
     EXPECT_EQ(srw.readLine(), "foo");
     srw.writeChar('x');
     srw.writeU8(255);
     EXPECT_TRUE(srw.isEof());
+    srw.close();
+    EXPECT_TRUE(srw.isClosed());
 }
 
 TEST(File, Reader) {
@@ -72,29 +80,33 @@ TEST(File, Writer) {
 }
 
 TEST(File, ReaderWriter) {
-    FILE* f = tmpfile();
-    fputs("foo", f);
-    rewind(f);
+    FILE* sink = fopen("tmp", "w");
+    FILE* source = fopen("tmp", "r");
 
-    FileReaderWriter frw(f);
+    fwrite("foo", 1, 3, sink);
+    rewind(sink);
+
+    FileReaderWriter frw(sink, source);
     EXPECT_EQ(frw.readLine(), "foo");
 
     frw.writeString("bar");
     frw.writeU16(42);
 
-    rewind(f);
+    rewind(source);
     std::string res;
     for (;;) {
-        int c = fgetc(f);
+        int c = fgetc(source);
         if (c == EOF) {
             break;
         }
         res.push_back(c);
     }
 
-    EXPECT_EQ(res, "foobar42");
+    EXPECT_EQ(res, "bar42");
 
     EXPECT_TRUE(frw.isOpen());
     frw.close();
     EXPECT_FALSE(frw.isOpen());
+
+    remove("tmp");
 }
