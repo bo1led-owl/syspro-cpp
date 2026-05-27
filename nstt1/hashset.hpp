@@ -14,17 +14,8 @@ class HeapArray {
     T* items_;
     size_t size_;
 
-    static T* init(size_t n, const T& value = T()) {
-        T* res = new T[n];
-
-        try {
-            std::fill(res, res + n, value);
-        } catch (...) {
-            delete[] res;
-            throw;
-        }
-
-        return res;
+    static T* init(size_t n) {
+        return new T[n];
     }
 
 public:
@@ -42,8 +33,11 @@ public:
 
     explicit HeapArray(size_t n) : items_{init(n)}, size_{n} {}
 
+    HeapArray(const HeapArray&) = delete;
+    HeapArray& operator=(const HeapArray&) = delete;
+
     HeapArray(HeapArray&& that)
-        : items_{std::exchange(that.items_, nullptr)}, size_{std::exchange(size_, 0)} {}
+        : items_{std::exchange(that.items_, nullptr)}, size_{std::exchange(that.size_, 0)} {}
 
     HeapArray& operator=(HeapArray&& that) {
         std::swap(items_, that.items_);
@@ -56,19 +50,23 @@ public:
     }
 
     size_type size() const {
+        assert((items_ == nullptr) == (size_ == 0));
         return size_;
     }
 
+    bool empty() const {
+        assert((items_ == nullptr) == (size_ == 0));
+        return items_ == nullptr;
+    }
+
     T& operator[](size_t i) {
+        assert(i < size_);
         return items_[i];
     }
 
     const T& operator[](size_t i) const {
+        assert(i < size_);
         return items_[i];
-    }
-
-    operator bool() const {
-        return items_ != nullptr;
     }
 
     T* begin() {
@@ -76,6 +74,7 @@ public:
     }
 
     T* end() {
+        assert((items_ == nullptr) == (size_ == 0));
         return items_ + size_;
     }
 
@@ -92,6 +91,7 @@ public:
     }
 
     const T* cend() const {
+        assert((items_ == nullptr) == (size_ == 0));
         return items_ + size_;
     }
 };
@@ -100,9 +100,6 @@ public:
 template <typename T, typename Hash = std::hash<T>, typename Eq = std::equal_to<T>>
     requires std::predicate<Eq, const T&, const T&>
 class HashSet {
-    using Bucket = std::list<T>;
-    using Buckets = internal::HeapArray<Bucket>;
-
 public:
     using key_type = T;
     using value_type = T;
@@ -116,6 +113,9 @@ public:
     using key_equal = Eq;
 
 private:
+    using Bucket = std::list<T>;
+    using Buckets = internal::HeapArray<Bucket>;
+
     static constexpr float MAX_LOAD_FACTOR = 0.75f;
 
     Buckets buckets_;
@@ -134,22 +134,6 @@ private:
         BucketIter curBucket_ = nullptr;
         ItemIter curItem_{};
 
-        Iterator(B* buckets, BucketIter curBucket = nullptr, ItemIter curItem = ItemIter())
-            : buckets_{buckets}, curBucket_{curBucket}, curItem_{curItem} {
-            if (!buckets) {
-                curBucket_ = nullptr;
-                return;
-            }
-
-            if (curBucket_ == nullptr) {
-                curBucket_ = buckets_->begin();
-            }
-
-            if (curBucket_ != buckets_->end()) {
-                curItem_ = curBucket_->cbegin();
-            }
-        }
-
     public:
         using const_reference = const_reference;
         using reference = const_reference;
@@ -160,6 +144,29 @@ private:
         using iterator_category = std::forward_iterator_tag;
 
         Iterator() = default;
+
+        explicit Iterator(B* buckets, BucketIter curBucket = nullptr, ItemIter curItem = ItemIter())
+            : buckets_{buckets}, curBucket_{curBucket}, curItem_{curItem} {
+            if (!buckets) {
+                curBucket_ = nullptr;
+                return;
+            }
+
+            if (curBucket_ == nullptr) {
+                curBucket_ = buckets_->begin();
+            }
+
+            while (curBucket_ != buckets_->end() && curBucket_->empty()) {
+                ++curBucket_;
+            }
+
+            if (curBucket_ == buckets_->end()) {
+                buckets_ = nullptr;
+                return;
+            }
+
+            curItem_ = curBucket_->begin();
+        }
 
         bool operator==(const Iterator& that) const {
             if (buckets_ == nullptr) {
@@ -179,18 +186,21 @@ private:
         }
 
         Iterator& operator++() {
-            if (curItem_ == curBucket_->end()) {
-                ++curBucket_;
-
-                if (curBucket_ == buckets_->end()) {
-                    buckets_ = nullptr;
-                    return *this;
-                }
-
-                curItem_ = curBucket_->begin();
+            ++curItem_;
+            if (curItem_ != curBucket_->end()) {
+                return *this;
             }
 
-            ++curItem_;
+            do {
+                ++curBucket_;
+            } while (curBucket_ != buckets_->end() && curBucket_->empty());
+
+            if (curBucket_ == buckets_->end()) {
+                buckets_ = nullptr;
+                return *this;
+            }
+
+            curItem_ = curBucket_->begin();
             return *this;
         }
 
@@ -203,52 +213,6 @@ private:
 
     static_assert(std::forward_iterator<Iterator>);
 
-    float loadFactor() const {
-        if (buckets_.size() == 0) [[unlikely]] {
-            return std::numeric_limits<float>::infinity();
-        }
-
-        return static_cast<float>(size_) / static_cast<float>(buckets_.size());
-    }
-
-    static size_t nextCapacity(size_t cur) {
-        return cur * 2 + 7;  // looks prime enough to me
-    }
-
-    void rehashIfNeeded() {
-        if (loadFactor() < MAX_LOAD_FACTOR) {
-            return;
-        }
-
-        size_t newCapacity = nextCapacity(buckets_.size());
-        Buckets newBuckets = Buckets(newCapacity);
-
-        if (buckets_) {
-            for (Bucket& bucket : buckets_) {
-                while (!bucket.empty()) {
-                    size_t hash = hash_(bucket.front()) % newCapacity;
-                    newBuckets[hash].push_front(std::move(bucket.front()));
-                    bucket.pop_front();
-                }
-            }
-        }
-
-        buckets_ = std::move(newBuckets);
-    }
-
-    Buckets::iterator findBucket(const T& item) {
-        return const_cast<Buckets::iterator>(const_cast<const HashSet*>(this)->findBucket(item));
-    }
-
-    Buckets::const_iterator findBucket(const T& item) const {
-        if (!buckets_) {
-            return buckets_.end();
-        }
-
-        size_t hash = hash_(item) % buckets_.size();
-        return &buckets_[hash];
-    }
-
 public:
     using iterator = Iterator;
     using const_iterator = Iterator;
@@ -257,8 +221,8 @@ public:
 
     HashSet(std::initializer_list<T> items, Hash hash = Hash(), Eq eq = Eq())
         : hash_{hash}, eq_{eq} {
-        for (auto&& item : std::move(items)) {
-            insert(std::move(item));
+        for (auto&& item : items) {
+            insert(item);
         }
     }
 
@@ -321,35 +285,27 @@ public:
     }
 
     std::pair<iterator, bool> insert(T&& x) {
-        return emplace(std::move(x));
+        if constexpr (std::is_move_constructible_v<T>) {
+            return emplace(std::move(x));
+        } else {
+            return emplace<const T&>(x);
+        }
     }
 
     template <typename... Args>
     std::pair<iterator, bool> emplace(Args&&... args) {
         Bucket newItem;
-        newItem.emplace_front(std::forward<Args...>(args...));
+        newItem.emplace_front(std::forward<Args>(args)...);
 
-        auto bucket = findBucket(newItem.front());
-
-        if (bucket != buckets_.end()) {
-            typename Bucket::iterator prevEntry = std::ranges::find_if(
-                *bucket, [this, &newItem](const auto& y) { return eq_(newItem.front(), y); });
-
-            if (prevEntry != bucket->end()) {
-                return {iterator{&buckets_, bucket, prevEntry}, false};
-            }
+        auto it = find(newItem.front());
+        if (it != end()) {
+            return {it, false};
         }
 
         size_ += 1;
         rehashIfNeeded();
 
-        assert(buckets_.size() > 0);
-        auto bucketToInsert = findBucket(newItem.front());
-        assert(bucketToInsert);
-
-        bucketToInsert->splice(bucketToInsert->begin(), newItem);
-
-        return {iterator{&buckets_, bucketToInsert, bucketToInsert->begin()}, true};
+        return {transferBucketHead(*findBucket(newItem.front()), newItem), true};
     }
 
     const_iterator find(const T& x) const {
@@ -399,9 +355,6 @@ public:
         return count;
     }
 
-    iterator begin() {
-        return cbegin();
-    }
     const_iterator begin() const {
         return cbegin();
     }
@@ -409,15 +362,64 @@ public:
         return const_iterator{&buckets_};
     }
 
-    iterator end() {
-        return cend();
-    }
     const_iterator end() const {
         return cend();
     }
     const_iterator cend() const {
         return const_iterator{nullptr};
     }
-};
 
-template class HashSet<int>;
+private:
+    float loadFactor() const {
+        if (buckets_.size() == 0) [[unlikely]] {
+            return std::numeric_limits<float>::infinity();
+        }
+
+        return static_cast<float>(size_) / static_cast<float>(buckets_.size());
+    }
+
+    static size_t nextCapacity(size_t cur) {
+        if (cur == 0) [[unlikely]] {
+            return 8;
+        }
+        return cur * 2;
+    }
+
+    void rehashIfNeeded() {
+        if (loadFactor() < MAX_LOAD_FACTOR) [[likely]] {
+            return;
+        }
+
+        size_t newCapacity = nextCapacity(buckets_.size());
+        Buckets oldBuckets = std::exchange(buckets_, Buckets(newCapacity));
+
+        for (Bucket& bucket : oldBuckets) {
+            while (!bucket.empty()) {
+                transferBucketHead(*findBucket(bucket.front()), bucket);
+            }
+        }
+    }
+
+    Buckets::iterator findBucket(const T& item) {
+        return const_cast<Buckets::iterator>(const_cast<const HashSet*>(this)->findBucket(item));
+    }
+
+    Buckets::const_iterator findBucket(const T& item) const {
+        if (buckets_.empty()) {
+            return buckets_.end();
+        }
+
+        assert(std::popcount(buckets_.size()) == 1);
+        size_t hash = hash_(item) & (buckets_.size() - 1);
+        return &buckets_[hash];
+    }
+
+    iterator transferBucketHead(Bucket& into, Bucket& from) {
+        // assert(!buckets_.empty());
+        // typename Buckets::iterator into = findBucket(from.front());
+        // assert(into != buckets_.end());
+
+        into.splice(into.begin(), from, from.begin());
+        return iterator{&buckets_, &into, into.begin()};
+    }
+};
